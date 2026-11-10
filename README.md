@@ -2,7 +2,7 @@
 
 Pipeline de engenharia de dados e machine learning para estratégia de corrida de Fórmula 1: voltas entram em camadas Bronze, Silver e Gold (DuckDB + dbt), alimentam um modelo de tempo de volta, um simulador de pit stop e um detector de anomalias nas velocidades de reta, e tudo aparece em um dashboard Streamlit.
 
-> **Leia isto primeiro.** O projeto roda com **6 corridas reais de 2024** baixadas pelo FastF1 (Sakhir, Jeddah, Melbourne, Suzuka, Shanghai e Miami). Com dados reais, **o XGBoost não supera a regressão linear**, e o simulador tem uma limitação conhecida. Os dois resultados estão em [Resultados com dados reais](#resultados-com-dados-reais), com a causa de cada um. A seção seguinte mostra a validação com dados sintéticos, onde a verdade é conhecida.
+> **Leia isto primeiro.** O projeto roda com **6 corridas reais de 2024** baixadas pelo FastF1 (Sakhir, Jeddah, Melbourne, Suzuka, Shanghai e Miami). Com dados reais, **o XGBoost empata com a regressão linear**, e o simulador tem uma limitação conhecida. Os dois resultados estão em [Resultados com dados reais](#resultados-com-dados-reais), com a causa de cada um. A seção seguinte mostra a validação com dados sintéticos, onde a verdade é conhecida.
 
 ## Arquitetura
 
@@ -28,7 +28,7 @@ flowchart LR
 | Gold | `fct_laps_model` (só voltas limpas de pneu seco, alvo normalizado pela mediana da corrida), `fct_stints`, `fct_pit_stops`, `dim_races`. |
 | Análise | Modelo, simulador e detectores em Python; resultados publicados em `analytics.*` no mesmo DuckDB. |
 
-Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, é precisa, o `TrackStatus` é exatamente `"1"` (sem amarela, safety car, VSC ou bandeira vermelha) e não é volta de entrada nem de saída dos boxes.
+Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, é precisa, o `TrackStatus` é exatamente `"1"` (sem amarela, safety car, VSC ou bandeira vermelha) e não é volta de entrada nem de saída dos boxes. Além disso, a volta inteira sai quando a mediana do pelotão nela passa 5% do ritmo base da corrida: é o caso de uma relargada que chega com `TrackStatus` igual a `"1"`.
 
 ## O que cada parte faz
 
@@ -40,19 +40,21 @@ Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, �
 
 ## Resultados com dados reais
 
-6 corridas de 2024, 6.078 voltas na Bronze e 5.107 voltas limpas no Gold. RMSE em segundos, deixando uma corrida inteira de fora do treino:
+6 corridas de 2024, 6.078 voltas na Bronze e 5.096 voltas limpas no Gold. RMSE em segundos, deixando uma corrida inteira de fora do treino:
 
 | Corrida | Prever a média | Regressão linear | XGBoost monotônico |
 |---|---|---|---|
-| Sakhir | 1,26 | **1,08** | 2,28 |
-| Jeddah | 1,53 | 1,34 | **1,29** |
-| Melbourne | 1,14 | **0,92** | 1,57 |
-| Suzuka | 6,07 | **5,83** | 5,84 |
-| Shanghai | 1,29 | **1,04** | 1,31 |
-| Miami | 1,06 | **0,79** | 2,11 |
-| **Média** | 2,06 | **1,83** | 2,40 |
+| Sakhir | 1,26 | 0,91 | **0,88** |
+| Jeddah | 1,54 | 1,40 | **1,29** |
+| Melbourne | 1,11 | **0,83** | 0,94 |
+| Suzuka | 1,61 | 1,18 | **1,12** |
+| Shanghai | 1,29 | 1,00 | **0,96** |
+| Miami | 1,05 | **0,71** | 0,74 |
+| **Média** | 1,31 | 1,00 | **0,99** |
 
-**Por que o XGBoost perde: 11 voltas mal classificadas.** Em Suzuka houve bandeira vermelha na volta 1. A volta 3, da relargada, levou cerca de 149 s, mas chegou com `TrackStatus` igual a `"1"` e passou como volta limpa. São 11 voltas em 5.107, com até 62 s de erro, e o XGBoost aprende esse padrão como efeito de pneu novo. Removendo só essas voltas, os dois modelos **empatam**: RMSE médio de 0,99 (XGBoost) contra 1,00 (linear), com o XGBoost melhor em 4 das 6 corridas. A correção no dbt (descartar a volta inteira quando a mediana do pelotão fica mais de 5% acima do ritmo base) **ainda não foi aplicada**; os números da tabela são os atuais.
+Os dois modelos **empatam** no erro médio, e o XGBoost é melhor em 4 das 6 corridas. Com dados reais ele não mostra a vantagem que tinha nos dados sintéticos, e a regressão linear continua sendo um baseline difícil de bater.
+
+**Um erro encontrado e corrigido: 11 voltas mal classificadas.** Em Suzuka houve bandeira vermelha na volta 1. A volta 3, da relargada, levou cerca de 149 s, mas chegou com `TrackStatus` igual a `"1"` e passou como volta limpa. São 11 voltas em 5.107, com até 62 s de erro, e o XGBoost aprende esse padrão como efeito de pneu novo. Antes da correção, o RMSE médio era 2,40 (XGBoost) contra 1,83 (linear), e o XGBoost perdia em 5 das 6 corridas. A regra nova no `int_laps_flags` descarta a volta inteira quando a mediana do pelotão fica mais de 5% acima do ritmo base. Nas 6 corridas ela marcou só a volta 3 de Suzuka. Um teste novo simula uma relargada nos dados sintéticos e confere que a volta sai do Gold; com a regra desligada, ele falha.
 
 **Limitação do simulador.** Com dados reais, ele recomenda Médio e Duro com parada na volta 34 em todas as corridas. A volta 34 é o limite de idade do pneu médio que o modelo conhece, e a curva de degradação fica plana depois de cerca de 20 voltas, então ficar na pista nunca custa nada. A causa provável é que, dentro de um stint, idade do pneu e consumo de combustível sobem juntos e o modelo não consegue separar os dois. Na prática, os pilotos fizeram a primeira parada entre as voltas 7 e 22, e várias corridas tiveram 2 paradas.
 
@@ -91,12 +93,12 @@ Os dois empatam em F1, mas o Isolation Forest, por construção, sempre marca um
 
 ## Como foi testado
 
-**50 testes** (pytest), incluindo o `dbt build` real e o dashboard rodando em modo headless:
+**51 testes** (pytest), incluindo o `dbt build` real e o dashboard rodando em modo headless:
 
 - O Gold é **recalculado de forma independente em pandas** e comparado com o do dbt (contagem de voltas, mediana por corrida, pares de pit stop).
 - O simulador tem um **oráculo** (a física verdadeira) para medir arrependimento, e um **controle negativo** (modelo aleatório) para provar que o teste distingue um modelo bom de um ruim.
 - O dbt tem que **falhar** quando os dados são corrompidos (teste com chave duplicada).
-- **Testes de mutação**: quebrei o código de propósito de 5 jeitos e conferi se a suíte reclama. Os 5 foram detectados.
+- **Testes de mutação**: quebrei o código de propósito de 5 jeitos e conferi se a suíte reclama. Os 5 foram detectados; depois acrescentei uma sexta, para a regra de relargada, também detectada.
 
 | Mutação | Resultado |
 |---|---|
@@ -105,6 +107,7 @@ Os dois empatam em F1, mas o Isolation Forest, por construção, sempre marca um
 | modelo sem restrição monotônica | detectada |
 | simulador sem a regra de 2 compostos | detectada |
 | perda por parada ignorando a volta de saída | detectada |
+| dbt sem a regra de volta lenta do pelotão (relargada) | detectada |
 
 A primeira rodada de mutação **achou uma falha nos meus testes**: a mutação do safety car passava em tudo, porque no gerador a coluna `IsAccurate` já era falsa nessas voltas e a regra do dbt nunca era exercitada. Corrigi o gerador para que cada regra de limpeza tenha que funcionar sozinha.
 
@@ -137,13 +140,12 @@ No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, 
 **Validado (executado)**
 - Pipeline completo com as 6 corridas reais de 2024 baixadas pelo FastF1, no Windows, até o dashboard.
 - Pipeline completo em dados sintéticos: Bronze, DuckDB, `dbt build` (22 de 22), treino, publicação, dashboard.
-- 50 testes, `ruff` limpo, 5 mutações detectadas, dashboard renderizado em navegador real nas 4 abas.
+- 51 testes, `ruff` limpo, 5 mutações detectadas, dashboard renderizado em navegador real nas 4 abas.
 - Os nomes das colunas do contrato foram conferidos no código-fonte do FastF1 3.9.2 instalado, e a conversão `laps_to_bronze` é testada com um DataFrame no formato do FastF1 (timedelta, NaT).
 
 **Não validado**
-- **A regra de volta limpa falha em relargadas.** O `TrackStatus` da volta de relargada pode vir como `"1"`, como em Suzuka. Veja [Resultados com dados reais](#resultados-com-dados-reais).
+- **O limite de 5% foi escolhido olhando estas 6 corridas.** Ele separa a relargada de Suzuka de todo o resto, mas não foi testado em outras temporadas.
 - **O modelo não separa desgaste de combustível** em dados reais, e por isso a curva de degradação fica plana e o simulador sempre escolhe a parada mais tardia possível.
-- **Os 50 testes não foram rodados de novo** depois da reformulação do dashboard; o app foi verificado abrindo as 6 corridas pelo `AppTest` do Streamlit.
 - **O simulador não modela** tráfego, ultrapassagens, safety car, clima nem temperatura. Compara estratégias entre si em pista livre; não prevê tempo de corrida.
 - **As anomalias injetadas são o caso fácil**: queda constante nas quatro velocidades. Falhas reais são mais sutis. Não foi testado com falha real.
 - O workflow do GitHub Actions (só a sintaxe foi conferida) e qualquer execução em nuvem.
@@ -160,7 +162,7 @@ No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, 
 f1lab/         schema, synth (gerador com verdade conhecida), bronze, fetch_fastf1, model, strategy, anomaly, pipeline, evaluate
 dbt_project/   models (staging, intermediate, marts) + testes singulares
 dashboard/     app.py (Streamlit), replay.py (replay da corrida), car.py (desenho do carro)
-tests/         50 testes
+tests/         51 testes
 docs/          evaluation.json
 ```
 

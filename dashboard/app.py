@@ -20,9 +20,11 @@ import pandas as pd  # noqa: E402
 import plotly.graph_objects as go  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from dashboard.car3d import team_color  # noqa: E402
-from dashboard.replay import height as replay_height, payload as replay_payload, replay_html  # noqa: E402
 from dashboard.car import car_html  # noqa: E402
+from dashboard.car3d import team_color  # noqa: E402
+from dashboard.replay import height as replay_height  # noqa: E402
+from dashboard.replay import payload as replay_payload
+from dashboard.replay import replay_html
 from f1lab import strategy as strat  # noqa: E402
 from f1lab.model import LapModel  # noqa: E402
 from f1lab.schema import COMPOUNDS  # noqa: E402
@@ -47,7 +49,9 @@ HOVER_TEAM = "%{y}<br>%{x:+.2f} s vs. mediana<br>%{customdata[0]} voltas, %{cust
 st.set_page_config(page_title="F1 Strategy Lakehouse", page_icon=":material/sports_score:", layout="wide")
 
 # O tema nativo cobre cores e fontes; o CSS cuida do que ele não alcança: painéis, leituras em mono e foco.
-st.html(f"<style>{(ASSETS / 'tokens.css').read_text(encoding='utf-8')}{(ASSETS / 'console.css').read_text(encoding='utf-8')}</style>")
+st.html(
+    f"<style>{(ASSETS / 'tokens.css').read_text(encoding='utf-8')}{(ASSETS / 'console.css').read_text(encoding='utf-8')}</style>"
+)
 
 
 def style(fig: go.Figure, height: int = 380, legend: bool = True) -> go.Figure:
@@ -64,8 +68,14 @@ def style(fig: go.Figure, height: int = 380, legend: bool = True) -> go.Figure:
     )
     tick = dict(family=MEASURED_FONT, size=12)
     fig.update_xaxes(
-        showgrid=False, zeroline=False, linecolor=AXIS, ticks="outside", tickcolor=AXIS,
-        title_font=dict(size=12), tickfont=tick, automargin=True,
+        showgrid=False,
+        zeroline=False,
+        linecolor=AXIS,
+        ticks="outside",
+        tickcolor=AXIS,
+        title_font=dict(size=12),
+        tickfont=tick,
+        automargin=True,
     )
     fig.update_yaxes(gridcolor=GRID, zeroline=False, showline=False, title_font=dict(size=12), tickfont=tick, automargin=True)
     return fig
@@ -178,7 +188,12 @@ def render_positions(race_id: str) -> None:
                 )
             )
             fig.add_annotation(
-                x=d["lap_number"].iloc[-1], y=d["position"].iloc[-1], text=str(driver), showarrow=False, xanchor="left", xshift=6,
+                x=d["lap_number"].iloc[-1],
+                y=d["position"].iloc[-1],
+                text=str(driver),
+                showarrow=False,
+                xanchor="left",
+                xshift=6,
                 font=dict(family=BODY_FONT, size=11, color=INK),
             )
         n = int(placed["position"].max())
@@ -186,8 +201,15 @@ def render_positions(race_id: str) -> None:
         fig.update_xaxes(title="Volta", range=[0.5, total + 0.5])
         style(fig, height=max(420, 22 * n + 70), legend=False)
         fig.update_layout(margin_r=44)
-        chart(fig, f"Posição de cada piloto volta a volta; {leaders.index[0]} liderou {leaders.iloc[0]} de {total} voltas", "race_positions")
-        st.caption("Faixa âmbar: voltas sob safety car, safety car virtual ou bandeira vermelha. Linha pontilhada: segundo carro da equipe.")
+        chart(
+            fig,
+            f"Posição de cada piloto volta a volta; {leaders.index[0]} liderou {leaders.iloc[0]} de {total} voltas",
+            "race_positions",
+        )
+        st.caption(
+            "Faixa âmbar: voltas sob safety car, safety car virtual ou bandeira vermelha. "
+            "Linha pontilhada: segundo carro da equipe."
+        )
 
 
 def render_race(race_id: str) -> None:
@@ -255,7 +277,11 @@ def render_teams(race_id: str) -> None:
     left, right = st.columns([2, 3])
     with left, panel("team"):
         pick = st.selectbox("Equipe", list(pace.index), key="team_pick")
-        st.iframe(car_html(colors[pick]), height=240, alt=f"Desenho técnico de um carro genérico em vista superior, na cor da equipe {pick}")
+        st.iframe(
+            car_html(colors[pick]),
+            height=240,
+            alt=f"Desenho técnico de um carro genérico em vista superior, na cor da equipe {pick}",
+        )
         pits = stints.merge(teams, on="driver").query("team == @pick")
         kpis(
             "team",
@@ -266,7 +292,10 @@ def render_teams(race_id: str) -> None:
             ],
             min_width=160,
         )
-        st.caption("Desenho genérico nas medidas do regulamento de 2022 a 2025, pintado só com a cor da equipe. Sem logos nem modelos oficiais.")
+        st.caption(
+            "Desenho genérico nas medidas do regulamento de 2022 a 2025, pintado só com a cor da equipe. "
+            "Sem logos nem modelos oficiais."
+        )
     with right, panel("pace"):
         gap = pace["delta"].iloc[-1] - pace["delta"].iloc[0]
         st.subheader(f"{pace.index[0]} teve o melhor ritmo, {gap:.2f} s à frente da última")
@@ -351,10 +380,22 @@ def render_degradation(circuits: dict[str, str]) -> None:
         names = [circuits.get(r, r) for r in cv["race_id"]]
         fig = go.Figure(
             [
-                go.Bar(y=names, x=cv["rmse_baseline"], name="Baseline linear", orientation="h", marker_color=MUTED,
-                       hovertemplate="%{y}: %{x:.2f} s<extra>Baseline</extra>"),
-                go.Bar(y=names, x=cv["rmse_xgb"], name="XGBoost monotônico", orientation="h", marker_color=COOL,
-                       hovertemplate="%{y}: %{x:.2f} s<extra>XGBoost</extra>"),
+                go.Bar(
+                    y=names,
+                    x=cv["rmse_baseline"],
+                    name="Baseline linear",
+                    orientation="h",
+                    marker_color=MUTED,
+                    hovertemplate="%{y}: %{x:.2f} s<extra>Baseline</extra>",
+                ),
+                go.Bar(
+                    y=names,
+                    x=cv["rmse_xgb"],
+                    name="XGBoost monotônico",
+                    orientation="h",
+                    marker_color=COOL,
+                    hovertemplate="%{y}: %{x:.2f} s<extra>XGBoost</extra>",
+                ),
             ]
         )
         fig.update_layout(barmode="group", bargap=0.3, bargroupgap=0.08, yaxis=dict(autorange="reversed"))
@@ -378,8 +419,12 @@ def render_strategy(race: pd.Series) -> None:
         loss = c3.number_input("Perda por parada (s)", 10.0, 40.0, round(float(pit["median_s"]), 1), step=0.1)
         min_stint = c4.number_input("Stint mínimo", 3, 20, 8)
         comps = c5.pills(
-            "Compostos disponíveis", list(COMPOUNDS), selection_mode="multi", default=list(COMPOUNDS),
-            format_func=PT.get, key="strategy_compounds",
+            "Compostos disponíveis",
+            list(COMPOUNDS),
+            selection_mode="multi",
+            default=list(COMPOUNDS),
+            format_func=PT.get,
+            key="strategy_compounds",
         )
     if len(comps) < 2:
         st.info("Escolha ao menos 2 compostos (regra de pista seca).")
@@ -444,11 +489,11 @@ def render_strategy(race: pd.Series) -> None:
 
 def render_anomalies(race_id: str) -> None:
     labels = {"robust_z": "Z-score robusto", "iforest": "Isolation Forest"}
-    det = st.segmented_control("Detector", list(labels), default="robust_z", required=True, format_func=labels.get, key="detector")
-    flags = q(f"select * from analytics.anomaly_flags where race_id = '{race_id}' and detector = '{det}'")
-    laps = q(
-        f"select driver, lap_number, speed_st from gold.fct_laps_model where race_id = '{race_id}' and speed_st is not null"
+    det = st.segmented_control(
+        "Detector", list(labels), default="robust_z", required=True, format_func=labels.get, key="detector"
     )
+    flags = q(f"select * from analytics.anomaly_flags where race_id = '{race_id}' and detector = '{det}'")
+    laps = q(f"select driver, lap_number, speed_st from gold.fct_laps_model where race_id = '{race_id}' and speed_st is not null")
     m = laps.merge(flags[["driver", "lap_number", "is_flagged"]], on=["driver", "lap_number"], how="left")
     m["is_flagged"] = m["is_flagged"].eq(True)
     n = int(m["is_flagged"].sum())

@@ -21,7 +21,7 @@ def _bronze(season_db):
 
 
 def _independent_clean(b: pd.DataFrame) -> pd.DataFrame:
-    ok = (
+    rules = (
         (b["LapNumber"] > 1)
         & b["LapTime_s"].notna()
         & ~b["Deleted"]
@@ -29,9 +29,12 @@ def _independent_clean(b: pd.DataFrame) -> pd.DataFrame:
         & (b["TrackStatus"] == "1")
         & b["PitInTime_s"].isna()
         & b["PitOutTime_s"].isna()
-        & b["Compound"].isin(["SOFT", "MEDIUM", "HARD"])
     )
-    return b[ok]
+    passed = b[rules]
+    field = passed.groupby(["race_id", "LapNumber"])["LapTime_s"].transform("median")
+    base = passed.groupby("race_id")["LapTime_s"].transform("median")
+    keep = passed[~(field > 1.05 * base)]  # volta em que o pelotão inteiro estava lento (relargada)
+    return keep[keep["Compound"].isin(["SOFT", "MEDIUM", "HARD"])]
 
 
 def test_gold_laps_match_an_independent_pandas_filter(season_db, gold):
@@ -86,3 +89,30 @@ def test_dbt_fails_when_the_data_is_corrupted(season_raw, tmp_path):
     con.close()
     with pytest.raises(RuntimeError, match="falhou"):
         pipeline.run_dbt(tmp_path / "f1.duckdb", _dbt_bin())
+
+
+def test_restart_lap_with_clear_status_is_not_clean(season_raw, tmp_path):
+    """Caso real de Suzuka 2024: a volta da relargada vem com TrackStatus '1', mas o pelotão inteiro está lento."""
+    laps, races = season_raw[0].copy(), season_raw[1]
+    race = sorted(laps["race_id"].unique())[0]
+    slow = (laps["race_id"] == race) & (laps["LapNumber"] == 5)
+    laps.loc[slow, "LapTime_s"] = laps.loc[slow, "LapTime_s"] * 1.5
+    laps.loc[slow, "TrackStatus"] = "1"
+    write_bronze(laps, races, tmp_path / "bronze")
+    db = tmp_path / "f1.duckdb"
+    load_into_duckdb(db, tmp_path / "bronze")
+    pipeline.run_dbt(db, _dbt_bin())
+    con = duckdb.connect(str(db), read_only=True)
+    try:
+        flagged = con.execute(
+            "select count(*) from silver.int_laps_flags where race_id = ? and lap_number = 5 and is_field_slow_lap", [race]
+        ).fetchone()[0]
+        in_model = con.execute(
+            "select count(*) from gold.fct_laps_model where race_id = ? and lap_number = 5", [race]
+        ).fetchone()[0]
+        other_race = con.execute(
+            "select count(*) from silver.int_laps_flags where race_id <> ? and is_field_slow_lap", [race]
+        ).fetchone()[0]
+    finally:
+        con.close()
+    assert flagged > 0 and in_model == 0 and other_race == 0

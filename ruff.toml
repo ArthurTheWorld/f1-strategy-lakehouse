@@ -7,3 +7,9 @@ select = ["E", "F", "I", "W", "B", "UP"]
 
 [lint.per-file-ignores]
 "dashboard/car3d.py" = ["E501"]
+# o app ajusta o sys.path antes de importar os módulos do projeto
+"dashboard/app.py" = ["E402"]
+# CSS e JavaScript embutidos em strings
+"dashboard/scene.py" = ["E501"]
+"dashboard/replay.py" = ["E501"]
+"dashboard/car.py" = ["E501"]

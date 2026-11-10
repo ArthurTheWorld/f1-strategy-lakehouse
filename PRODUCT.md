@@ -47,9 +47,8 @@ Um lakehouse completo, com dbt e testes, que declara o que foi validado e o que 
 
 - Dados reais: 6 corridas de 2024 via FastF1 (Sakhir, Jeddah, Melbourne, Suzuka, Shanghai e Miami), em `data/f1.duckdb`.
 - Avaliação sobre dados sintéticos com verdade conhecida: `docs/evaluation.json`.
-- Resultado real conhecido (2026-11-08): a volta 3 de Suzuka, da relargada, ainda entra como volta limpa e piora os números publicados. Sem essas 11 voltas, em teste com uma corrida fora do treino, o XGBoost empata com a regressão linear (RMSE 0,99 contra 1,00).
+- Resultado real (2026-11-10): com a volta da relargada de Suzuka fora do modelo, o XGBoost empata com a regressão linear (RMSE 0,99 contra 1,00, melhor em 4 de 6 corridas), em teste com uma corrida fora do treino.
 - Limitação real conhecida: a recomendação do simulador é dominada pelo limite de idade do pneu e não reproduz o número de paradas observado.
-- O README ainda descreve o conector FastF1 como não executado e precisa ser atualizado.
 - Não existem depoimentos, usuários, clientes, benchmarks externos ou métricas de uso. Nada disso pode ser inventado.
 
 ## Product Principles

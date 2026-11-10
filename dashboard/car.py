@@ -16,12 +16,36 @@ HALF_WIDTH_MM = 1000
 
 # Metade de cada contorno (y >= 0), do bico para a traseira; a outra metade é espelhada.
 _BODY: list[Point] = [
-    (1160, 0), (1150, 60), (800, 85), (350, 125), (0, 170), (-400, 225), (-750, 290), (-1050, 330),
-    (-1180, 430), (-1215, 735), (-1260, 765), (-1600, 775), (-2200, 760), (-2700, 700), (-3050, 520),
-    (-3250, 330), (-3600, 200), (-4020, 120), (-4060, 0),
+    (1160, 0),
+    (1150, 60),
+    (800, 85),
+    (350, 125),
+    (0, 170),
+    (-400, 225),
+    (-750, 290),
+    (-1050, 330),
+    (-1180, 430),
+    (-1215, 735),
+    (-1260, 765),
+    (-1600, 775),
+    (-2200, 760),
+    (-2700, 700),
+    (-3050, 520),
+    (-3250, 330),
+    (-3600, 200),
+    (-4020, 120),
+    (-4060, 0),
 ]
 _FLOOR: list[Point] = [
-    (-700, 0), (-700, 330), (-760, 790), (-900, 810), (-2850, 810), (-3150, 740), (-3235, 570), (-3920, 545), (-3960, 0),
+    (-700, 0),
+    (-700, 330),
+    (-760, 790),
+    (-900, 810),
+    (-2850, 810),
+    (-3150, 740),
+    (-3235, 570),
+    (-3920, 545),
+    (-3960, 0),
 ]
 _SPINE: list[Point] = [(-1490, 0), (-1520, 125), (-1950, 150), (-2650, 105), (-3400, 50), (-3880, 22), (-3900, 0)]
 # Asa dianteira: bordo de ataque e bordo de fuga em três estações (centro, meio, ponta).
@@ -57,7 +81,9 @@ def _span(half: list[Point]) -> list[Point]:
 
 def _wing_element(t: float) -> str:
     """Linha de um elemento da asa, a uma fração t entre o bordo de ataque e o de fuga."""
-    return _polygon(_span([(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for a, b in zip(_WING_LEAD, _WING_TRAIL)]))
+    return _polygon(
+        _span([(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for a, b in zip(_WING_LEAD, _WING_TRAIL, strict=True)])
+    )
 
 
 def _both(markup: str) -> str:

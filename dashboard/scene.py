@@ -86,7 +86,9 @@ _CAR = f"""
 
 def _wheel() -> str:
     """Roda centrada em (0,0). A marca assimétrica no aro é o que deixa o giro visível."""
-    spokes = "".join(f'<rect x="-3" y="-36" width="6" height="27" fill="#a5a5ad" transform="rotate({a})"/>' for a in range(0, 360, 60))
+    spokes = "".join(
+        f'<rect x="-3" y="-36" width="6" height="27" fill="#a5a5ad" transform="rotate({a})"/>' for a in range(0, 360, 60)
+    )
     return (
         f'<circle r="{WHEEL_R}" fill="#0b0b0d"/>'
         f'<circle r="{WHEEL_R - 1}" fill="none" stroke="#333338" stroke-width="2"/>'
@@ -153,7 +155,8 @@ def _fence() -> str:
 def _road() -> str:
     h = 58
     kerb = "".join(
-        f'<rect x="{x}" y="4" width="40" height="9" fill="{"#e8e8e8" if x % 80 == 0 else "#26262a"}"/>' for x in range(0, TILE, 40)
+        f'<rect x="{x}" y="4" width="40" height="9" fill="{"#e8e8e8" if x % 80 == 0 else "#26262a"}"/>'
+        for x in range(0, TILE, 40)
     )
     dashes = "".join(f'<rect x="{x}" y="38" width="90" height="3" fill="#3c3c42"/>' for x in range(30, TILE, 200))
     body = f'<rect width="{TILE}" height="{h}" fill="#101012"/><rect width="{TILE}" height="2" fill="#ff2db4"/>{kerb}{dashes}'

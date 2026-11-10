@@ -158,7 +158,6 @@ def car_html(color: str, label: str = "", height: int = 420) -> str:
     """HTML autocontido com o carro 3D. `color` é um hex como '#27F4D2'."""
     three = (_ASSETS / "three.min.js").read_text(encoding="utf-8")
     js = _JS.replace("TEAM_COLOR", repr(color))
-    safe = label.replace("<", "").replace(">", "").replace("&", "")
     return (
         "<!doctype html><html><head><meta charset='utf-8'><style>"
         "html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Segoe UI,system-ui,sans-serif}"
