@@ -1,0 +1,3 @@
+# ambiente separado, só para o dbt
+dbt-duckdb>=1.9
+duckdb>=1.1

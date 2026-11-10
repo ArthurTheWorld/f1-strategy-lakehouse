@@ -1,0 +1,90 @@
+{
+ "protocol": {
+  "tune_seed": 101,
+  "test_seeds": [
+   11,
+   12,
+   13,
+   14,
+   15
+  ],
+  "no_anomaly_seeds": [
+   21,
+   22
+  ],
+  "races_per_season": 8
+ },
+ "model_cv": {
+  "rmse_naive_mean": 1.1511031094780846,
+  "rmse_baseline": 0.4505675312672104,
+  "rmse_xgb": 0.4203782538357145
+ },
+ "recovery": {
+  "tyre_curve_mae_s": {
+   "SOFT": 0.08122671406609676,
+   "MEDIUM": 0.04768270829064506,
+   "HARD": 0.09235045685313996
+  },
+  "baseline_tyre_curve_mae_s": {
+   "SOFT": 0.7509257739185051,
+   "MEDIUM": 0.26906539987478084,
+   "HARD": 0.17272673449826054
+  },
+  "fuel_effect_10_to_40_s": -1.031410574913025,
+  "fuel_effect_truth_s": -0.96
+ },
+ "pit_loss": {
+  "mean_s": 21.24056208297206,
+  "median_s": 21.365759823922446,
+  "n": 188,
+  "truth_mean_s": 21.22081179609993,
+  "abs_error_median_s": 0.14494802782251526
+ },
+ "strategy_regret_s": {
+  "model": [
+   0.007,
+   0.0,
+   0.102,
+   0.12,
+   1.588
+  ],
+  "model_max": 1.5884000000005472,
+  "random_model_min": 11.791188203899765
+ },
+ "anomaly_tuning": {
+  "robust_z": {
+   "threshold": 2.5,
+   "min_consecutive": 2,
+   "f1_tune": 0.9625
+  },
+  "iforest": {
+   "contamination": 0.01,
+   "f1_tune": 0.9358974358974359
+  }
+ },
+ "anomaly_test": {
+  "robust_z": {
+   "tp": 321,
+   "fp": 0,
+   "fn": 30,
+   "precision": 1.0,
+   "recall": 0.9145299145299145,
+   "f1": 0.9553571428571429,
+   "n_anomalous": 351
+  },
+  "iforest": {
+   "tp": 325,
+   "fp": 6,
+   "fn": 26,
+   "precision": 0.9818731117824774,
+   "recall": 0.9259259259259259,
+   "f1": 0.9530791788856305,
+   "n_anomalous": 351
+  }
+ },
+ "anomaly_clean_seasons": {
+  "laps": 14361,
+  "false_alarms_robust_z": 2,
+  "false_alarms_iforest": 67
+ }
+}

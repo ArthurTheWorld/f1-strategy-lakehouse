@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: stg_laps
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_races')
+                field: race_id
+      - name: driver
+        data_tests: [not_null]
+      - name: lap_number
+        data_tests: [not_null]
+      - name: compound
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET', 'UNKNOWN', 'TEST_UNKNOWN']
+              config:
+                severity: warn
+
+  - name: dim_races
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: race_median_lap_s
+        data_tests: [not_null]
+
+  - name: fct_laps_model
+    columns:
+      - name: lap_time_s
+        data_tests: [not_null]
+      - name: tyre_life
+        data_tests: [not_null]
+      - name: compound
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['SOFT', 'MEDIUM', 'HARD']
+
+  - name: fct_stints
+    columns:
+      - name: n_laps
+        data_tests: [not_null]
+
+  - name: fct_pit_stops
+    columns:
+      - name: in_lap_time_s
+        data_tests: [not_null]

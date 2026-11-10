@@ -1,0 +1,23 @@
+name: ci
+on:
+  push: {branches: [main]}
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      # dois ambientes: o dbt e o Streamlit têm dependências de protobuf incompatíveis
+      - name: Instalar o ambiente do dbt
+        run: python -m venv .venv-dbt && .venv-dbt/bin/pip install -q -r requirements-dbt.txt
+      - name: Instalar o ambiente de análise
+        run: python -m venv .venv && .venv/bin/pip install -q -r requirements-dev.txt
+      - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
+      - name: Testes (inclui o dbt build real e o dashboard)
+        run: DBT_BIN=$PWD/.venv-dbt/bin/dbt .venv/bin/python -m pytest -q
+      - name: Pipeline ponta a ponta com dados sintéticos
+        run: DBT_BIN=$PWD/.venv-dbt/bin/dbt .venv/bin/python -m f1lab.pipeline all --races 6 --seed 7

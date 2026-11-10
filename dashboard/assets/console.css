@@ -1,0 +1,29 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Console (by request) · redesign: full
+ * nav: top bar with the race picker, tabs kept · signature: the race replay from real lap times · states: empty, no data, full · console: graphite
+ * axes: dark/grotesk-sans/chromatic-amber · posture: restrained · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P3 H3 E3 S3 R3 V3 · weakest: S, the project's thesis still needs its own content block */
+/* Os tokens ficam em tokens.css, injetado antes deste arquivo. As cores do tema nativo estão em .streamlit/config.toml. */
+
+html, body { overflow-x: clip; }
+
+[data-testid="stMainBlockContainer"] { max-width: var(--container); margin-inline: auto; }
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--tracking-display); line-height: 1.05; overflow-wrap: break-word; min-width: 0; }
+
+/* Painéis: um degrau acima do fundo, sem sombra. */
+[class*="st-key-panel_"] { background: var(--color-paper-2); border-radius: var(--radius-card); }
+
+/* O que foi medido usa a fonte mono; rótulos continuam na fonte de leitura. */
+[class*="st-key-kpi_"] [data-testid="stMetricValue"],
+[class*="st-key-kpi_"] [data-testid="stMetricValue"] * { font-family: var(--font-outlier); font-variant-numeric: tabular-nums slashed-zero; }
+
+.st-key-reading [data-testid="stMetricValue"],
+.st-key-reading [data-testid="stMetricValue"] * { font-family: var(--font-outlier); font-size: var(--text-reading); font-weight: 400; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums slashed-zero; }
+
+/* Rótulos longos quebram linha em vez de serem cortados no celular. */
+[class*="st-key-kpi_"] [data-testid="stMetricLabel"] *,
+[class*="st-key-text_"] [data-testid="stMetricLabel"] * { white-space: normal; overflow: visible; text-overflow: clip; }
+
+:root { --text-reading: clamp(2.5rem, 5vw, 3.5rem); }
+
+:focus-visible { outline: var(--rule-hair) solid var(--color-focus); outline-width: 2px; outline-offset: 2px; }

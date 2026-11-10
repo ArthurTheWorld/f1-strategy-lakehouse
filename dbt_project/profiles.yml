@@ -1,0 +1,7 @@
+f1_lakehouse:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('F1_DB', '../data/f1.duckdb') }}"
+      threads: 1

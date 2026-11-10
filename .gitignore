@@ -1,0 +1,16 @@
+__pycache__/
+.venv*/
+.pytest_cache/
+.ruff_cache/
+.fastf1_cache/
+data/
+artifacts/
+dbt_project/target/
+dbt_project/logs/
+dbt_project/.user.yml
+*.duckdb
+*.duckdb.wal
+
+# ferramentas de design (registros locais)
+.hallmark/
+.impeccable/

@@ -1,0 +1,9 @@
+line-length = 130
+target-version = "py311"
+extend-exclude = ["dbt_project/target", "dbt_project/logs"]
+
+[lint]
+select = ["E", "F", "I", "W", "B", "UP"]
+
+[lint.per-file-ignores]
+"dashboard/car3d.py" = ["E501"]

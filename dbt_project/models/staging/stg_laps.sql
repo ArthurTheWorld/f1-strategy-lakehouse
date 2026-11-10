@@ -1,0 +1,27 @@
+-- Silver: nomes em snake_case e tipos corretos. Nenhuma linha é descartada aqui.
+select
+    race_id,
+    "Driver"                         as driver,
+    "DriverNumber"                   as driver_number,
+    "Team"                           as team,
+    cast("LapNumber" as integer)     as lap_number,
+    cast("Stint" as integer)         as stint,
+    upper("Compound")                as compound,
+    cast("TyreLife" as double)       as tyre_life,
+    coalesce("FreshTyre", false)     as fresh_tyre,
+    "LapTime_s"                      as lap_time_s,
+    "Sector1Time_s"                  as sector1_s,
+    "Sector2Time_s"                  as sector2_s,
+    "Sector3Time_s"                  as sector3_s,
+    "PitInTime_s"                    as pit_in_time_s,
+    "PitOutTime_s"                   as pit_out_time_s,
+    "SpeedI1"                        as speed_i1,
+    "SpeedI2"                        as speed_i2,
+    "SpeedFL"                        as speed_fl,
+    "SpeedST"                        as speed_st,
+    "TrackStatus"                    as track_status,
+    cast("Position" as integer)      as position,
+    coalesce("IsAccurate", false)    as is_accurate,
+    coalesce("Deleted", false)       as is_deleted,
+    _ingested_at
+from {{ source('bronze', 'laps') }}
