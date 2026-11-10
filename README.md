@@ -2,7 +2,7 @@
 
 Pipeline de engenharia de dados e machine learning para estratégia de corrida de Fórmula 1: voltas entram em camadas Bronze, Silver e Gold (DuckDB + dbt), alimentam um modelo de tempo de volta, um simulador de pit stop e um detector de anomalias nas velocidades de reta, e tudo aparece em um dashboard Streamlit.
 
-> **Leia isto primeiro.** Os resultados abaixo vêm de **corridas sintéticas com verdade conhecida**, porque o ambiente onde o projeto foi construído não alcança os servidores da F1. Eles provam que o pipeline e o modelo **recuperam os parâmetros usados para gerar os dados**. Não provam desempenho em corridas reais. O conector de dados reais (FastF1) está escrito, mas **não foi executado contra a rede**. Detalhes em [Validado e não validado](#validado-e-não-validado).
+> **Leia isto primeiro.** O projeto roda com **6 corridas reais de 2024** baixadas pelo FastF1 (Sakhir, Jeddah, Melbourne, Suzuka, Shanghai e Miami). Com dados reais, **o XGBoost não supera a regressão linear**, e o simulador tem uma limitação conhecida. Os dois resultados estão em [Resultados com dados reais](#resultados-com-dados-reais), com a causa de cada um. A seção seguinte mostra a validação com dados sintéticos, onde a verdade é conhecida.
 
 ## Arquitetura
 
@@ -38,7 +38,25 @@ Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, �
 
 **Detecção de anomalias.** Procura quedas sustentadas nas velocidades de reta (`SpeedI1`, `SpeedI2`, `SpeedFL`, `SpeedST`) por piloto, como sinal de problema de potência. Compara um z-score robusto (mediana e MAD) com um Isolation Forest. Não usei LSTM de propósito: sem volume nem rótulos reais, um detector simples e explicável é o ponto de partida honesto.
 
-## Resultados (dados sintéticos)
+## Resultados com dados reais
+
+6 corridas de 2024, 6.078 voltas na Bronze e 5.107 voltas limpas no Gold. RMSE em segundos, deixando uma corrida inteira de fora do treino:
+
+| Corrida | Prever a média | Regressão linear | XGBoost monotônico |
+|---|---|---|---|
+| Sakhir | 1,26 | **1,08** | 2,28 |
+| Jeddah | 1,53 | 1,34 | **1,29** |
+| Melbourne | 1,14 | **0,92** | 1,57 |
+| Suzuka | 6,07 | **5,83** | 5,84 |
+| Shanghai | 1,29 | **1,04** | 1,31 |
+| Miami | 1,06 | **0,79** | 2,11 |
+| **Média** | 2,06 | **1,83** | 2,40 |
+
+**Por que o XGBoost perde: 11 voltas mal classificadas.** Em Suzuka houve bandeira vermelha na volta 1. A volta 3, da relargada, levou cerca de 149 s, mas chegou com `TrackStatus` igual a `"1"` e passou como volta limpa. São 11 voltas em 5.107, com até 62 s de erro, e o XGBoost aprende esse padrão como efeito de pneu novo. Removendo só essas voltas, os dois modelos **empatam**: RMSE médio de 0,99 (XGBoost) contra 1,00 (linear), com o XGBoost melhor em 4 das 6 corridas. A correção no dbt (descartar a volta inteira quando a mediana do pelotão fica mais de 5% acima do ritmo base) **ainda não foi aplicada**; os números da tabela são os atuais.
+
+**Limitação do simulador.** Com dados reais, ele recomenda Médio e Duro com parada na volta 34 em todas as corridas. A volta 34 é o limite de idade do pneu médio que o modelo conhece, e a curva de degradação fica plana depois de cerca de 20 voltas, então ficar na pista nunca custa nada. A causa provável é que, dentro de um stint, idade do pneu e consumo de combustível sobem juntos e o modelo não consegue separar os dois. Na prática, os pilotos fizeram a primeira parada entre as voltas 7 e 22, e várias corridas tiveram 2 paradas.
+
+## Resultados com dados sintéticos
 
 Protocolo em `f1lab/evaluate.py`; números completos em [`docs/evaluation.json`](docs/evaluation.json). Os parâmetros dos detectores foram escolhidos em uma temporada de **ajuste** e avaliados em 5 temporadas de **teste** com sementes diferentes, mais 2 temporadas **sem nenhuma anomalia** para medir alarme falso.
 
@@ -104,7 +122,7 @@ export DBT_BIN=$PWD/.venv-dbt/bin/dbt
 .venv/bin/python -m pytest -q
 ```
 
-No Windows, os executáveis ficam em `.venv\Scripts\` (`python.exe`, `streamlit.exe`, `dbt.exe`) e a variável é `$env:DBT_BIN`. **Os comandos de Windows não foram testados**; tudo foi executado em Linux.
+No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, roda o dbt, treina e abre o dashboard (`.\rodar.ps1`, ou `.\rodar.ps1 -Sintetico` sem internet).
 
 **Com dados reais** (rode na sua máquina, com internet):
 
@@ -117,16 +135,18 @@ No Windows, os executáveis ficam em `.venv\Scripts\` (`python.exe`, `streamlit.
 ## Validado e não validado
 
 **Validado (executado)**
+- Pipeline completo com as 6 corridas reais de 2024 baixadas pelo FastF1, no Windows, até o dashboard.
 - Pipeline completo em dados sintéticos: Bronze, DuckDB, `dbt build` (22 de 22), treino, publicação, dashboard.
 - 50 testes, `ruff` limpo, 5 mutações detectadas, dashboard renderizado em navegador real nas 4 abas.
 - Os nomes das colunas do contrato foram conferidos no código-fonte do FastF1 3.9.2 instalado, e a conversão `laps_to_bronze` é testada com um DataFrame no formato do FastF1 (timedelta, NaT).
 
 **Não validado**
-- **Nenhuma execução com dados reais.** `fetch_race` (a chamada de rede) nunca rodou. Suposições a conferir: `PitInTime` na volta de entrada e `PitOutTime` na de saída; `IsAccurate` e `TrackStatus` com o significado documentado; o nome do circuito vindo de `session.event["Location"]`.
-- **O modelo nunca viu uma corrida real.** O gerador e o modelo compartilham a mesma estrutura (efeito aditivo de idade e combustível), então os números acima são otimistas. Em corridas reais há tráfego, evolução da pista, clima, diferença entre pilotos e combustível que não é linear.
+- **A regra de volta limpa falha em relargadas.** O `TrackStatus` da volta de relargada pode vir como `"1"`, como em Suzuka. Veja [Resultados com dados reais](#resultados-com-dados-reais).
+- **O modelo não separa desgaste de combustível** em dados reais, e por isso a curva de degradação fica plana e o simulador sempre escolhe a parada mais tardia possível.
+- **Os 50 testes não foram rodados de novo** depois da reformulação do dashboard; o app foi verificado abrindo as 6 corridas pelo `AppTest` do Streamlit.
 - **O simulador não modela** tráfego, ultrapassagens, safety car, clima nem temperatura. Compara estratégias entre si em pista livre; não prevê tempo de corrida.
 - **As anomalias injetadas são o caso fácil**: queda constante nas quatro velocidades. Falhas reais são mais sutis. Não foi testado com falha real.
-- Comandos de Windows, o workflow do GitHub Actions (só a sintaxe foi conferida) e qualquer execução em nuvem.
+- O workflow do GitHub Actions (só a sintaxe foi conferida) e qualquer execução em nuvem.
 
 ## Limitações assumidas
 
@@ -139,15 +159,13 @@ No Windows, os executáveis ficam em `.venv\Scripts\` (`python.exe`, `streamlit.
 ```
 f1lab/         schema, synth (gerador com verdade conhecida), bronze, fetch_fastf1, model, strategy, anomaly, pipeline, evaluate
 dbt_project/   models (staging, intermediate, marts) + testes singulares
-dashboard/     app.py (Streamlit)
+dashboard/     app.py (Streamlit), replay.py (replay da corrida), car.py (desenho do carro)
 tests/         50 testes
-docs/          evaluation.json e capturas do dashboard
+docs/          evaluation.json
 ```
 
 ## Dashboard
 
-![Corrida](docs/dashboard_corrida.png)
-![Estratégia](docs/dashboard_estrategia.png)
-![Anomalias](docs/dashboard_anomalias.png)
+Cinco abas sobre a corrida escolhida: **Corrida** (posições volta a volta, stints e tempos), **Equipes** (ritmo por equipe), **Degradação** (curvas de pneu e erro do modelo por corrida), **Estratégia** (simulador) e **Anomalias** (quedas de velocidade de reta). No topo, um replay anima a diferença de cada piloto para o líder a partir dos tempos de volta reais.
 
 **Stack:** Python, DuckDB, dbt, XGBoost, scikit-learn, Streamlit, Plotly, FastF1, pytest, GitHub Actions.
