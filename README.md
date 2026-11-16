@@ -2,13 +2,13 @@
 
 Pipeline de engenharia de dados e machine learning para estratégia de corrida de Fórmula 1: voltas entram em camadas Bronze, Silver e Gold (DuckDB + dbt), alimentam um modelo de tempo de volta, um simulador de pit stop e um detector de anomalias nas velocidades de reta, e tudo aparece em um dashboard Streamlit.
 
-> **Leia isto primeiro.** O projeto roda com **6 corridas reais de 2024** baixadas pelo FastF1 (Sakhir, Jeddah, Melbourne, Suzuka, Shanghai e Miami). Com dados reais, **o XGBoost empata com a regressão linear**, e o simulador tem uma limitação conhecida. Os dois resultados estão em [Resultados com dados reais](#resultados-com-dados-reais), com a causa de cada um. A seção seguinte mostra a validação com dados sintéticos, onde a verdade é conhecida.
+> **Leia isto primeiro.** O projeto roda com **as 20 corridas de 2026 já disputadas**, baixadas pela OpenF1. Com dados reais, **o XGBoost empata com a regressão linear**, e o simulador tem uma limitação conhecida. Os dois resultados estão em [Resultados com dados reais](#resultados-com-dados-reais), com a causa de cada um. A seção seguinte mostra a validação com dados sintéticos, onde a verdade é conhecida.
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
-    A[FastF1 ou gerador sintético] --> B[Bronze<br/>Parquet + _ingested_at]
+    A[OpenF1 ou gerador sintético] --> B[Bronze<br/>Parquet + _ingested_at]
     B --> C[(DuckDB<br/>schema bronze)]
     C --> D[Silver dbt<br/>stg_laps, int_laps_flags]
     D --> E[Gold dbt<br/>fct_laps_model, fct_stints,<br/>fct_pit_stops, dim_races]
@@ -40,23 +40,39 @@ Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, �
 
 ## Resultados com dados reais
 
-6 corridas de 2024, 6.078 voltas na Bronze e 5.096 voltas limpas no Gold. RMSE em segundos, deixando uma corrida inteira de fora do treino:
+Temporada 2026, as 20 corridas já disputadas (Melbourne a Interlagos), baixadas pela OpenF1: 23.626 voltas na Bronze e 17.947 voltas limpas de pneu seco no Gold. RMSE em segundos, deixando uma corrida inteira de fora do treino:
 
 | Corrida | Prever a média | Regressão linear | XGBoost monotônico |
 |---|---|---|---|
-| Sakhir | 1,26 | 0,91 | **0,88** |
-| Jeddah | 1,54 | 1,40 | **1,29** |
-| Melbourne | 1,11 | **0,83** | 0,94 |
-| Suzuka | 1,61 | 1,18 | **1,12** |
-| Shanghai | 1,29 | 1,00 | **0,96** |
-| Miami | 1,05 | **0,71** | 0,74 |
-| **Média** | 1,31 | 1,00 | **0,99** |
+| Melbourne | 2,22 | 2,09 | 2,09 |
+| Shanghai | 1,53 | 1,33 | **1,31** |
+| Suzuka | 1,59 | 1,35 | **1,31** |
+| Miami | 1,51 | **1,47** | 1,49 |
+| Montreal | 2,29 | **2,29** | 2,36 |
+| Monte Carlo | 1,72 | **1,67** | 1,72 |
+| Catalunya | 1,82 | 1,64 | **1,60** |
+| Spielberg | 1,51 | 1,40 | **1,38** |
+| Silverstone | 1,68 | 1,55 | **1,54** |
+| Spa-Francorchamps | 1,87 | 1,76 | **1,69** |
+| Hungaroring | 1,66 | 1,44 | **1,38** |
+| Zandvoort | 1,75 | **1,62** | 1,63 |
+| Monza | 1,22 | **1,13** | 1,24 |
+| Madring | 2,27 | 2,05 | **1,91** |
+| Baku | 1,61 | **1,47** | 1,49 |
+| Kuala Lumpur | 1,62 | **1,52** | 1,57 |
+| Singapore | 1,68 | **1,56** | 1,63 |
+| Austin | 1,50 | 1,28 | **1,22** |
+| Mexico City | 1,09 | 1,11 | 1,10 |
+| Interlagos | 1,81 | **1,64** | 1,69 |
+| **Média** | 1,70 | 1,57 | 1,57 |
 
-Os dois modelos **empatam** no erro médio, e o XGBoost é melhor em 4 das 6 corridas. Com dados reais ele não mostra a vantagem que tinha nos dados sintéticos, e a regressão linear continua sendo um baseline difícil de bater.
+Os dois modelos **empatam** no erro médio, e o XGBoost é melhor em 11 das 20 corridas. Com dados reais ele não mostra a vantagem que tinha nos dados sintéticos, e a regressão linear continua sendo um baseline difícil de bater. O mesmo empate apareceu antes com 6 corridas de 2024 (0,99 contra 1,00).
 
-**Um erro encontrado e corrigido: 11 voltas mal classificadas.** Em Suzuka houve bandeira vermelha na volta 1. A volta 3, da relargada, levou cerca de 149 s, mas chegou com `TrackStatus` igual a `"1"` e passou como volta limpa. São 11 voltas em 5.107, com até 62 s de erro, e o XGBoost aprende esse padrão como efeito de pneu novo. Antes da correção, o RMSE médio era 2,40 (XGBoost) contra 1,83 (linear), e o XGBoost perdia em 5 das 6 corridas. A regra nova no `int_laps_flags` descarta a volta inteira quando a mediana do pelotão fica mais de 5% acima do ritmo base. Nas 6 corridas ela marcou só a volta 3 de Suzuka. Um teste novo simula uma relargada nos dados sintéticos e confere que a volta sai do Gold; com a regra desligada, ele falha.
+**Um erro encontrado e corrigido em 2024: 11 voltas mal classificadas.** Em Suzuka 2024 houve bandeira vermelha na volta 1. A volta 3, da relargada, levou cerca de 149 s, mas chegou com `TrackStatus` igual a `"1"` e passou como volta limpa. São 11 voltas em 5.107, com até 62 s de erro, e o XGBoost aprende esse padrão como efeito de pneu novo. Antes da correção, o RMSE médio era 2,40 (XGBoost) contra 1,83 (linear), e o XGBoost perdia em 5 das 6 corridas. A regra nova no `int_laps_flags` descarta a volta inteira quando a mediana do pelotão fica mais de 5% acima do ritmo base. Um teste simula uma relargada nos dados sintéticos e confere que a volta sai do Gold; com a regra desligada, ele falha. Em 2026 a regra marcou 28 voltas em 9 corridas.
 
-**Limitação do simulador.** Com dados reais, ele recomenda Médio e Duro com parada na volta 34 em todas as corridas. A volta 34 é o limite de idade do pneu médio que o modelo conhece, e a curva de degradação fica plana depois de cerca de 20 voltas, então ficar na pista nunca custa nada. A causa provável é que, dentro de um stint, idade do pneu e consumo de combustível sobem juntos e o modelo não consegue separar os dois. Na prática, os pilotos fizeram a primeira parada entre as voltas 7 e 22, e várias corridas tiveram 2 paradas.
+**Outro, encontrado em 2026: uma volta de 1.168 s passou como limpa.** A OpenF1 não publica o `IsAccurate` do FastF1, que descartava esse tipo de volta. Em Melbourne, um carro parou e voltou à pista; a volta tinha pista livre e entrou no modelo. A regra dos 30% (a volta sozinha, acima do ritmo base) tira esses casos: 4 voltas em 2026 que passavam por todas as outras regras. Com ela, o RMSE médio caiu de 3,43 para 1,57.
+
+**Limitação do simulador.** Com dados reais, ele recomenda sempre Médio e depois Duro. A primeira parada cai em dois grupos (voltas 16 a 24 ou 36 e 37), e não acompanha o que as equipes fizeram: a mediana real da primeira parada variou entre as voltas 14 e 46. A causa provável é que, dentro de um stint, idade do pneu e consumo de combustível sobem juntos e o modelo não consegue separar os dois; a curva de degradação fica quase plana.
 
 ## Resultados com dados sintéticos
 
@@ -130,7 +146,7 @@ No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, 
 **Com dados reais** (rode na sua máquina, com internet). A fonte é a [OpenF1](https://openf1.org), que não pede login: desde novembro de 2026 o FastF1 exige uma conta da Fórmula 1 até para os tempos de volta. As respostas cruas da API ficam em `data/raw/openf1/`, e reprocessar não precisa de rede.
 
 ```bash
-.venv/bin/python -m f1lab.fetch_openf1 --year 2024 --rounds 1 2 3 --out data/bronze
+.venv/bin/python -m f1lab.fetch_openf1 --year 2026 --rounds 1 2 3 --out data/bronze
 .venv/bin/python -m f1lab.pipeline build
 .venv/bin/python -m f1lab.pipeline train
 ```
@@ -146,7 +162,7 @@ No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, 
 - Os nomes das colunas do contrato foram conferidos no código-fonte do FastF1 3.9.2 instalado, e a conversão `laps_to_bronze` é testada com um DataFrame no formato do FastF1 (timedelta, NaT).
 
 **Não validado**
-- **O limite de 5% foi escolhido olhando estas 6 corridas.** Ele separa a relargada de Suzuka de todo o resto, mas não foi testado em outras temporadas.
+- **O limite de 5% foi escolhido olhando as 6 corridas de 2024.** Ele separa a relargada de Suzuka de todo o resto. Em 2026 ele rodou sem ajuste, mas ninguém conferiu volta a volta se as 28 voltas marcadas são todas neutralizadas.
 - **O modelo não separa desgaste de combustível** em dados reais, e por isso a curva de degradação fica plana e o simulador sempre escolhe a parada mais tardia possível.
 - **O simulador não modela** tráfego, ultrapassagens, safety car, clima nem temperatura. Compara estratégias entre si em pista livre; não prevê tempo de corrida.
 - **As anomalias injetadas são o caso fácil**: queda constante nas quatro velocidades. Falhas reais são mais sutis. Não foi testado com falha real.
@@ -172,4 +188,4 @@ docs/          evaluation.json
 
 Cinco abas sobre a corrida escolhida: **Corrida** (posições volta a volta, stints e tempos), **Equipes** (ritmo por equipe), **Degradação** (curvas de pneu e erro do modelo por corrida), **Estratégia** (simulador) e **Anomalias** (quedas de velocidade de reta). No topo, um replay anima a diferença de cada piloto para o líder a partir dos tempos de volta reais.
 
-**Stack:** Python, DuckDB, dbt, XGBoost, scikit-learn, Streamlit, Plotly, FastF1, pytest, GitHub Actions.
+**Stack:** Python, DuckDB, dbt, XGBoost, scikit-learn, Streamlit, Plotly, OpenF1, FastF1, pytest, GitHub Actions.
