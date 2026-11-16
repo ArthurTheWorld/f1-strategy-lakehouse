@@ -25,10 +25,20 @@ _SPEED = [c.lower().replace("speed", "speed_") for c in SPEED_COLUMNS]  # speed_
 MAD_SCALE = 1.4826
 
 
+def _available(laps: pd.DataFrame) -> list[str]:
+    """Velocidades que a fonte de dados tem: a OpenF1 não publica a da linha de chegada (speed_fl)."""
+    return [c for c in _SPEED if c in laps and laps[c].notna().any()]
+
+
+def _residuals(df: pd.DataFrame) -> list[str]:
+    return [f"res_{c}" for c in _SPEED if f"res_{c}" in df]
+
+
 def prepare(laps: pd.DataFrame) -> pd.DataFrame:
     """Resíduo de cada velocidade em relação à mediana do piloto na corrida."""
-    df = laps.dropna(subset=_SPEED).copy()
-    for c in _SPEED:
+    speeds = _available(laps)
+    df = laps.dropna(subset=speeds).copy()
+    for c in speeds:
         med = df.groupby(["race_id", "driver"])[c].transform("median")
         df[f"res_{c}"] = df[c] - med
     return df
@@ -38,7 +48,7 @@ def detect_robust_z(df: pd.DataFrame, threshold: float = 3.0, min_consecutive: i
     """Marca quedas: z robusto médio abaixo de -threshold, em pelo menos `min_consecutive` voltas seguidas."""
     out = df.sort_values(["race_id", "driver", "lap_number"]).copy()
     z_cols = []
-    for c in _SPEED:
+    for c in [r.removeprefix("res_") for r in _residuals(out)]:
         mad = out.groupby(["race_id", "driver"])[f"res_{c}"].transform(lambda s: (s - s.median()).abs().median())
         mad = mad.replace(0, np.nan) * MAD_SCALE
         out[f"z_{c}"] = out[f"res_{c}"] / mad
@@ -69,11 +79,11 @@ def detect_robust_z(df: pd.DataFrame, threshold: float = 3.0, min_consecutive: i
 
 def detect_iforest(df: pd.DataFrame, contamination: float = 0.02, seed: int = 0) -> pd.DataFrame:
     out = df.sort_values(["race_id", "driver", "lap_number"]).copy()
-    x = out[[f"res_{c}" for c in _SPEED]].to_numpy()
+    x = out[_residuals(out)].to_numpy()
     iso = IsolationForest(n_estimators=200, contamination=contamination, random_state=seed, n_jobs=1).fit(x)
     out["score"] = iso.score_samples(x)
     # só interessa queda de velocidade: ignora anomalias para cima (velocidade maior que o normal)
-    drop = out[[f"res_{c}" for c in _SPEED]].mean(axis=1) < 0
+    drop = out[_residuals(out)].mean(axis=1) < 0
     out["is_flagged"] = (iso.predict(x) == -1) & drop.to_numpy()
     return out[["race_id", "driver", "lap_number", "score", "is_flagged"]]
 

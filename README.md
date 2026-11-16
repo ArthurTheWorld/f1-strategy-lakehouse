@@ -28,7 +28,7 @@ flowchart LR
 | Gold | `fct_laps_model` (só voltas limpas de pneu seco, alvo normalizado pela mediana da corrida), `fct_stints`, `fct_pit_stops`, `dim_races`. |
 | Análise | Modelo, simulador e detectores em Python; resultados publicados em `analytics.*` no mesmo DuckDB. |
 
-Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, é precisa, o `TrackStatus` é exatamente `"1"` (sem amarela, safety car, VSC ou bandeira vermelha) e não é volta de entrada nem de saída dos boxes. Além disso, a volta inteira sai quando a mediana do pelotão nela passa 5% do ritmo base da corrida: é o caso de uma relargada que chega com `TrackStatus` igual a `"1"`.
+Uma volta é **limpa** quando: não é a volta 1, tem tempo, não foi anulada, é precisa, o `TrackStatus` é exatamente `"1"` (sem amarela, safety car, VSC ou bandeira vermelha) e não é volta de entrada nem de saída dos boxes. Além disso, a volta inteira sai quando a mediana do pelotão nela passa 5% do ritmo base da corrida: é o caso de uma relargada que chega com `TrackStatus` igual a `"1"`. E sai a volta que, sozinha, fica mais de 30% acima do ritmo base (rodada, dano, carro parado), porque isso é incidente e não desgaste de pneu. As duas medianas usam só pneu seco.
 
 ## O que cada parte faz
 
@@ -93,7 +93,7 @@ Os dois empatam em F1, mas o Isolation Forest, por construção, sempre marca um
 
 ## Como foi testado
 
-**51 testes** (pytest), incluindo o `dbt build` real e o dashboard rodando em modo headless:
+**57 testes** (pytest), incluindo o `dbt build` real e o dashboard rodando em modo headless:
 
 - O Gold é **recalculado de forma independente em pandas** e comparado com o do dbt (contagem de voltas, mediana por corrida, pares de pit stop).
 - O simulador tem um **oráculo** (a física verdadeira) para medir arrependimento, e um **controle negativo** (modelo aleatório) para provar que o teste distingue um modelo bom de um ruim.
@@ -127,10 +127,10 @@ export DBT_BIN=$PWD/.venv-dbt/bin/dbt
 
 No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, roda o dbt, treina e abre o dashboard (`.\rodar.ps1`, ou `.\rodar.ps1 -Sintetico` sem internet).
 
-**Com dados reais** (rode na sua máquina, com internet):
+**Com dados reais** (rode na sua máquina, com internet). A fonte é a [OpenF1](https://openf1.org), que não pede login: desde novembro de 2026 o FastF1 exige uma conta da Fórmula 1 até para os tempos de volta. As respostas cruas da API ficam em `data/raw/openf1/`, e reprocessar não precisa de rede.
 
 ```bash
-.venv/bin/python -m f1lab.fetch_fastf1 --year 2024 --rounds 1 2 3 --out data/bronze
+.venv/bin/python -m f1lab.fetch_openf1 --year 2024 --rounds 1 2 3 --out data/bronze
 .venv/bin/python -m f1lab.pipeline build
 .venv/bin/python -m f1lab.pipeline train
 ```
@@ -140,7 +140,9 @@ No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, 
 **Validado (executado)**
 - Pipeline completo com as 6 corridas reais de 2024 baixadas pelo FastF1, no Windows, até o dashboard.
 - Pipeline completo em dados sintéticos: Bronze, DuckDB, `dbt build` (22 de 22), treino, publicação, dashboard.
-- 51 testes, `ruff` limpo, 5 mutações detectadas, dashboard renderizado em navegador real nas 4 abas.
+- **Troca de fonte de dados:** o conector da OpenF1 foi comparado volta a volta com o do FastF1 nas mesmas 6 corridas de 2024. Tempo de volta igual (diferença mediana de 0 ms), e posição, pneus, stints e entradas e saídas dos boxes batem em mais de 99% das voltas. O status da pista bate em 99,8% ou mais em 5 corridas; em Suzuka fica em 96%, porque a OpenF1 registra a volta da bandeira vermelha de outro jeito (essa volta já sai do modelo).
+- Pipeline completo com as 20 corridas de 2026 já disputadas (até Interlagos), pela OpenF1.
+- 57 testes, `ruff` limpo, 5 mutações detectadas, dashboard renderizado em navegador real nas 5 abas.
 - Os nomes das colunas do contrato foram conferidos no código-fonte do FastF1 3.9.2 instalado, e a conversão `laps_to_bronze` é testada com um DataFrame no formato do FastF1 (timedelta, NaT).
 
 **Não validado**
@@ -159,10 +161,10 @@ No Windows, o `rodar.ps1` faz tudo: cria os ambientes, baixa as corridas reais, 
 ## Estrutura
 
 ```
-f1lab/         schema, synth (gerador com verdade conhecida), bronze, fetch_fastf1, model, strategy, anomaly, pipeline, evaluate
+f1lab/         schema, synth (gerador com verdade conhecida), bronze, fetch_openf1, fetch_fastf1, model, strategy, anomaly, pipeline, evaluate
 dbt_project/   models (staging, intermediate, marts) + testes singulares
 dashboard/     app.py (Streamlit), replay.py (replay da corrida), car.py (desenho do carro)
-tests/         51 testes
+tests/         57 testes
 docs/          evaluation.json
 ```
 

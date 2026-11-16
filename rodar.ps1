@@ -1,5 +1,6 @@
 # Uso (PowerShell, dentro desta pasta):
-#   .\rodar.ps1            -> baixa corridas REAIS de 2024 (FastF1), processa e abre o dashboard
+#   .\rodar.ps1            -> baixa corridas REAIS de 2024 (OpenF1, sem login), processa e abre o dashboard
+#   .\rodar.ps1 -Ano 2026 -Rodadas (1..20) -> outra temporada
 #   .\rodar.ps1 -Sintetico -> usa dados sinteticos (sem internet)
 param([switch]$Sintetico, [int]$Ano = 2024, [int[]]$Rodadas = @(1,2,3,4,5,6))
 $ErrorActionPreference = "Stop"
@@ -21,7 +22,7 @@ if ($Sintetico) {
     & .\.venv\Scripts\python.exe -m f1lab.pipeline synth --races 8 --seed 7
 } else {
     Write-Host ">> Baixando corridas reais $Ano, rodadas $($Rodadas -join ',') (a 1a vez demora)..."
-    & .\.venv\Scripts\python.exe -m f1lab.fetch_fastf1 --year $Ano --rounds $Rodadas --out data/bronze
+    & .\.venv\Scripts\python.exe -m f1lab.fetch_openf1 --year $Ano --rounds $Rodadas --out data/bronze
 }
 if ($LASTEXITCODE -ne 0) { throw "Falha na etapa de dados. Copie a mensagem de erro e mande para o Claude." }
 & .\.venv\Scripts\python.exe -m f1lab.pipeline build

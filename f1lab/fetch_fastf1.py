@@ -1,9 +1,12 @@
 """Conector de DADOS REAIS via FastF1.
 
-ESTADO DE VALIDAÇÃO (leia antes de confiar):
-- `laps_to_bronze` (a conversão) É testada, com um DataFrame no formato do `fastf1.core.Laps`.
-- `fetch_race` (a chamada de rede ao FastF1) NÃO foi executada: o ambiente onde este projeto foi construído
-  bloqueia os servidores da F1. Rode localmente e confira antes de usar os resultados.
+ESTADO (novembro de 2026): o FastF1 passou a exigir login numa conta da Fórmula 1 até para os tempos de volta.
+Sem login, só funcionam corridas que já estão no cache local. Para baixar corridas use `f1lab.fetch_openf1`, que gera
+o mesmo contrato Bronze. Nas 6 primeiras corridas de 2024, as duas fontes batem em mais de 99% das voltas
+(tempo, pneus, boxes e posição).
+
+- `laps_to_bronze` (a conversão) é testada, com um DataFrame no formato do `fastf1.core.Laps`.
+- `fetch_race` rodou com as 6 primeiras corridas de 2024, antes da exigência de login.
 
 Uso:
     python -m f1lab.fetch_fastf1 --year 2024 --rounds 1 2 3 --out data/bronze

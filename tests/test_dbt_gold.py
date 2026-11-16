@@ -30,11 +30,12 @@ def _independent_clean(b: pd.DataFrame) -> pd.DataFrame:
         & b["PitInTime_s"].isna()
         & b["PitOutTime_s"].isna()
     )
-    passed = b[rules]
+    passed = b[rules & b["Compound"].isin(["SOFT", "MEDIUM", "HARD"])]
     field = passed.groupby(["race_id", "LapNumber"])["LapTime_s"].transform("median")
     base = passed.groupby("race_id")["LapTime_s"].transform("median")
-    keep = passed[~(field > 1.05 * base)]  # volta em que o pelotão inteiro estava lento (relargada)
-    return keep[keep["Compound"].isin(["SOFT", "MEDIUM", "HARD"])]
+    keep = ~(field > 1.05 * base)  # volta em que o pelotão inteiro estava lento (relargada)
+    keep &= ~(passed["LapTime_s"] > 1.30 * base)  # incidente: a própria volta muito acima do ritmo base
+    return passed[keep]
 
 
 def test_gold_laps_match_an_independent_pandas_filter(season_db, gold):
