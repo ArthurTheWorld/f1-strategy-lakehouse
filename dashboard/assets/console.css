@@ -27,3 +27,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: var(--display-weight
 :root { --text-reading: clamp(2.5rem, 5vw, 3.5rem); }
 
 :focus-visible { outline: var(--rule-hair) solid var(--color-focus); outline-width: 2px; outline-offset: 2px; }
+
+/* Tese do projeto: linha de leitura confortável, texto secundário com o número-chave em destaque. */
+.st-key-thesis { max-width: 76ch; }
+.st-key-thesis p { color: var(--color-ink-2); line-height: 1.55; }
+.st-key-thesis strong { color: var(--color-ink); font-weight: 600; }

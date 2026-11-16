@@ -21,10 +21,10 @@ import plotly.graph_objects as go  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from dashboard.car import car_html  # noqa: E402
-from dashboard.car3d import team_color  # noqa: E402
 from dashboard.replay import height as replay_height  # noqa: E402
 from dashboard.replay import payload as replay_payload
 from dashboard.replay import replay_html
+from dashboard.teams import team_color  # noqa: E402
 from f1lab import strategy as strat  # noqa: E402
 from f1lab.model import LapModel  # noqa: E402
 from f1lab.schema import COMPOUNDS  # noqa: E402
@@ -44,6 +44,19 @@ BODY_FONT = "Host Grotesk, system-ui, sans-serif"
 MEASURED_FONT = "Atkinson Hyperlegible Mono, Consolas, monospace"
 COLORS = {"SOFT": "#ff3b30", "MEDIUM": "#f5d000", "HARD": "#e8e8e8"}
 PT = {"SOFT": "Macio", "MEDIUM": "Médio", "HARD": "Duro"}
+# Termos de F1 usados no painel. Aparecem no glossário do topo e como dica (?) nos indicadores.
+GLOSSARY = {
+    "Stint": "Trecho da corrida feito com o mesmo jogo de pneus, entre a largada ou uma parada e a próxima parada.",
+    "Composto": "Tipo de borracha do pneu de pista seca. Macio é o mais rápido e gasta mais; Duro dura mais e é mais lento.",
+    "Idade do pneu": "Quantas voltas aquele jogo de pneus já tem, contando as feitas antes da corrida.",
+    "Degradação": "Quanto a volta fica mais lenta à medida que o pneu envelhece.",
+    "Ritmo base": "Mediana das voltas limpas da corrida. Os tempos do modelo são medidos como diferença para ele.",
+    "Volta limpa": "Volta em pista livre, sem entrar ou sair dos boxes, sem safety car nem incidente. Só elas treinam o modelo.",
+    "Perda no box": "Tempo perdido numa parada: volta de entrada e de saída, comparadas com o que seriam sem parar.",
+    "Safety car e VSC": "Neutralizações por acidente ou perigo na pista. Todos andam devagar, então essas voltas não medem pneu.",
+    "Velocidade de reta": "Velocidade medida num ponto fixo da reta. Uma queda sustentada pode indicar problema de motor.",
+    "RMSE": "Erro típico da previsão, em segundos por volta. Cada corrida é prevista por um modelo treinado sem ela.",
+}
 HOVER_TEAM = "%{y}<br>%{x:+.2f} s vs. mediana<br>%{customdata[0]} voltas, %{customdata[1]} pilotos<extra></extra>"
 
 st.set_page_config(page_title="F1 Strategy Lakehouse", page_icon=":material/sports_score:", layout="wide")
@@ -90,12 +103,41 @@ def panel(name: str):
     return st.container(border=True, height="stretch", key=f"panel_{name}")
 
 
-def kpis(key: str, items: list[tuple[str, str, bool]], min_width: int = 150) -> None:
-    """Indicadores de largura igual. O terceiro campo diz se o valor foi medido (fonte mono) ou é texto."""
+def kpis(key: str, items: list[tuple], min_width: int = 150) -> None:
+    """Indicadores de largura igual: (rótulo, valor, medido?, dica opcional). Medido usa a fonte mono."""
     with st.grid(len(items), min_column_width=min_width, gap="small"):
-        for i, (label, value, measured) in enumerate(items):
+        for i, (label, value, measured, *tip) in enumerate(items):
             with st.container(key=f"{'kpi' if measured else 'text'}_{key}_{i}", height="stretch"):
-                st.metric(label, value, border=True, height="stretch")
+                st.metric(label, value, border=True, height="stretch", help=tip[0] if tip else None)
+
+
+def thesis(races: pd.DataFrame) -> str:
+    """A pergunta do projeto e a resposta honesta, com os números do último treino."""
+    text = (
+        "Um pipeline de dados que transforma os tempos de volta públicos da Fórmula 1 em um modelo de desgaste "
+        "de pneu e um simulador de paradas. A pergunta: dá para achar a melhor estratégia só com dados abertos?"
+    )
+    metrics_file = ART / "metrics.json"
+    if not metrics_file.exists():
+        return text
+    m = json.loads(metrics_file.read_text(encoding="utf-8"))
+    years = sorted(races["year"].astype(int).unique())
+    season = str(years[0]) if len(years) == 1 else f"{years[0]} a {years[-1]}"
+    return text + (
+        f" Em {m['n_races']} corridas de {season}, o modelo erra **{m['cv_rmse_xgb']:.2f} s por volta**, "
+        f"empatado com uma regressão linear ({m['cv_rmse_baseline']:.2f} s), e o simulador ainda não acompanha "
+        "as paradas das equipes. O painel mostra o que funciona e o que não funciona."
+    )
+
+
+def glossary() -> None:
+    with st.popover("Termos de F1", icon=":material/menu_book:", width="stretch"):
+        st.table(
+            pd.DataFrame({"Termo": list(GLOSSARY), "O que é": list(GLOSSARY.values())}),
+            hide_index=True,
+            border="horizontal",
+            alt="Glossário dos termos de Fórmula 1 usados no painel",
+        )
 
 
 def lap_clock(seconds: float) -> str:
@@ -111,10 +153,10 @@ def plural(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def strategy_label(text: str) -> str:
-    for en, pt in PT.items():
-        text = text.replace(en, pt)
-    return text
+def strategy_label(compounds, pit_laps, n_laps: int) -> str:
+    """'Médio 1-24 / Duro 25-57 / Duro 58-71': composto e voltas de cada stint, por extenso."""
+    bounds = [0, *(int(p) for p in pit_laps), int(n_laps)]
+    return " / ".join(f"{PT[c]} {bounds[i] + 1}-{bounds[i + 1]}" for i, c in enumerate(compounds))
 
 
 @st.cache_data(show_spinner=False)
@@ -341,7 +383,7 @@ def render_degradation(circuits: dict[str, str]) -> None:
     left, right = st.columns([3, 2])
     with left, panel("curves"):
         curves = q("select * from analytics.tyre_curves order by compound, tyre_life")
-        st.subheader(degradation_title(curves))
+        st.subheader(degradation_title(curves), help=GLOSSARY["Degradação"])
         fig = go.Figure()
         for c in COMPOUNDS:
             d = curves[curves["compound"] == c]
@@ -376,7 +418,7 @@ def render_degradation(circuits: dict[str, str]) -> None:
     with right, panel("cv"):
         cv = q("select race_id, rmse_baseline, rmse_xgb from analytics.cv_by_race order by race_id")
         wins = int((cv["rmse_xgb"] < cv["rmse_baseline"]).sum())
-        st.subheader(f"XGBoost errou menos em {wins} de {len(cv)} corridas")
+        st.subheader(f"XGBoost errou menos em {wins} de {len(cv)} corridas", help=GLOSSARY["RMSE"])
         names = [circuits.get(r, r) for r in cv["race_id"]]
         fig = go.Figure(
             [
@@ -415,9 +457,13 @@ def render_strategy(race: pd.Series) -> None:
         st.subheader("Parâmetros")
         c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 2], vertical_alignment="bottom")
         n_laps = c1.number_input("Voltas da corrida", 30, 80, int(race["n_laps"]))
-        base = c2.number_input("Ritmo base (s)", 60.0, 130.0, round(float(race["race_median_lap_s"]), 2), step=0.1)
-        loss = c3.number_input("Perda por parada (s)", 10.0, 40.0, round(float(pit["median_s"]), 1), step=0.1)
-        min_stint = c4.number_input("Stint mínimo", 3, 20, 8)
+        base = c2.number_input(
+            "Ritmo base (s)", 60.0, 130.0, round(float(race["race_median_lap_s"]), 2), step=0.1, help=GLOSSARY["Ritmo base"]
+        )
+        loss = c3.number_input(
+            "Perda por parada (s)", 10.0, 40.0, round(float(pit["median_s"]), 1), step=0.1, help=GLOSSARY["Perda no box"]
+        )
+        min_stint = c4.number_input("Stint mínimo", 3, 20, 8, help=GLOSSARY["Stint"] + " Aqui, o menor permitido.")
         comps = c5.pills(
             "Compostos disponíveis",
             list(COMPOUNDS),
@@ -433,7 +479,7 @@ def render_strategy(race: pd.Series) -> None:
     if res.empty:
         st.warning("Nenhuma estratégia válida: o modelo não tem dados de pneu para stints tão longos.")
         return
-    res = res.assign(label=res["strategy"].map(strategy_label))
+    res = res.assign(label=[strategy_label(c, p, int(n_laps)) for c, p in zip(res["compounds"], res["pit_laps"], strict=True)])
     best = res.iloc[0]
     items = [
         ("Melhor estratégia", " / ".join(PT[c] for c in best["compounds"]), False),
@@ -468,16 +514,19 @@ def render_strategy(race: pd.Series) -> None:
                 )
         fig.update_layout(barmode="overlay", bargap=0.28, yaxis=dict(autorange="reversed"))
         fig.update_xaxes(title="Volta", range=[0, int(n_laps)])
-        chart(style(fig, height=300, legend=False), "Stints das cinco melhores estratégias", "strategy_bars")
+        style(fig, height=380, legend=False)
+        fig.update_layout(margin_l=96)  # abas ocultas medem o texto errado; a margem fixa evita cortar "#1  +0.0s"
+        fig.update_yaxes(automargin=False, tickfont=dict(family=MEASURED_FONT, size=12, color=INK))
+        chart(fig, "Stints das cinco melhores estratégias", "strategy_bars")
     with right, panel("strategy_table"):
         st.subheader("Todas as 10 estratégias")
         st.dataframe(
             res[["rank", "label", "stops", "total_time_s", "gap_s"]],
             hide_index=True,
-            height=300,
+            height="content",
             column_config={
                 "rank": st.column_config.NumberColumn("#", width="small"),
-                "label": "Estratégia",
+                "label": st.column_config.TextColumn("Estratégia", width="large"),
                 "stops": st.column_config.NumberColumn("Paradas", width="small"),
                 "total_time_s": st.column_config.NumberColumn("Tempo total (s)", format="%.2f"),
                 "gap_s": st.column_config.NumberColumn("Diferença (s)", format="+%.2f"),
@@ -528,7 +577,7 @@ def render_anomalies(race_id: str) -> None:
         pick = table["driver"].iloc[rows[0] if rows else 0]
         d = m[m["driver"] == pick].sort_values("lap_number")
         with right, panel("anomaly_speed"):
-            st.subheader(f"{pick}: velocidade de reta volta a volta")
+            st.subheader(f"{pick}: velocidade de reta volta a volta", help=GLOSSARY["Velocidade de reta"])
             fig = go.Figure(
                 [
                     go.Scatter(
@@ -571,8 +620,10 @@ def main() -> None:
 
     races = q("select * from gold.dim_races order by race_id")
     indexed = races.set_index("race_id")
-    brand, picker = st.columns([3, 1], vertical_alignment="bottom")
+    brand, picker, terms = st.columns([6, 2, 1], vertical_alignment="bottom")
     brand.title("F1 Strategy Lakehouse")
+    with terms:
+        glossary()
     with picker:
         race_id = st.selectbox(
             "Corrida",
@@ -581,6 +632,8 @@ def main() -> None:
             key="race",
         )
     race = indexed.loc[race_id]
+    with st.container(key="thesis"):
+        st.markdown(thesis(races))
     synthetic = (races["source"] == "synthetic").any()
     if synthetic:
         st.warning("Dados SINTÉTICOS gerados para validar o pipeline. Não representam corridas reais.")
@@ -601,10 +654,11 @@ def main() -> None:
     reading, stage = st.columns([1, 2], vertical_alignment="center")
     with reading:
         st.header(str(race["circuit"]))
-        origin = "Dados sintéticos" if synthetic else "Dados reais via FastF1"
+        source = {"openf1": "OpenF1", "fastf1": "FastF1"}.get(str(race["source"]), str(race["source"]))
+        origin = "Dados sintéticos" if synthetic else f"Dados reais via {source}"
         st.caption(f"Rodada {int(race['round'])} de {int(race['year'])}, {int(race['n_laps'])} voltas. {origin}.")
         with st.container(key="reading"):
-            st.metric("Ritmo base", lap_clock(float(race["race_median_lap_s"])))
+            st.metric("Ritmo base", lap_clock(float(race["race_median_lap_s"])), help=GLOSSARY["Ritmo base"])
         st.caption("O replay usa os tempos de volta acumulados e a posição oficial. Voltas sem tempo usam a mediana do pelotão.")
     with stage:
         st.iframe(
@@ -615,9 +669,9 @@ def main() -> None:
     kpis(
         "race",
         [
-            (f"Melhor volta limpa, {best['driver']}", lap_clock(float(best["lap_time_s"])), True),
+            (f"Melhor volta limpa, {best['driver']}", lap_clock(float(best["lap_time_s"])), True, GLOSSARY["Volta limpa"]),
             ("Paradas mais comuns", str(int(stops.mode().iloc[0])), True),
-            ("Perda no box, temporada", f"{float(pit['median_s']):.1f} s", True),
+            ("Perda no box, temporada", f"{float(pit['median_s']):.1f} s", True, GLOSSARY["Perda no box"]),
         ],
     )
 
