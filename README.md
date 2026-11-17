@@ -4,6 +4,8 @@ Pipeline de engenharia de dados e machine learning para estratégia de corrida d
 
 > **Leia isto primeiro.** O projeto roda com **as 20 corridas de 2026 já disputadas**, baixadas pela OpenF1. Com dados reais, **o XGBoost empata com a regressão linear**, e o simulador tem uma limitação conhecida. Os dois resultados estão em [Resultados com dados reais](#resultados-com-dados-reais), com a causa de cada um. A seção seguinte mostra a validação com dados sintéticos, onde a verdade é conhecida.
 
+![Visão geral do dashboard: a tese do projeto, o replay da corrida e os indicadores](docs/img/01-visao-geral.png)
+
 ## Arquitetura
 
 ```mermaid
@@ -187,5 +189,17 @@ docs/          evaluation.json
 ## Dashboard
 
 Cinco abas sobre a corrida escolhida: **Corrida** (posições volta a volta, stints e tempos), **Equipes** (ritmo por equipe), **Degradação** (curvas de pneu e erro do modelo por corrida), **Estratégia** (simulador) e **Anomalias** (quedas de velocidade de reta). No topo, um replay anima a diferença de cada piloto para o líder a partir dos tempos de volta reais.
+
+Posições volta a volta, com o segundo carro de cada equipe pontilhado:
+
+![Gráfico de posições volta a volta em Melbourne 2026](docs/img/02-posicoes.png)
+
+Curvas de degradação por composto e o erro de cada modelo com a corrida fora do treino:
+
+![Curvas de degradação e RMSE por corrida](docs/img/03-degradacao.png)
+
+O simulador de estratégia, com as 10 melhores combinações de pneus e paradas:
+
+![Simulador de estratégia com as 10 melhores estratégias](docs/img/04-estrategia.png)
 
 **Stack:** Python, DuckDB, dbt, XGBoost, scikit-learn, Streamlit, Plotly, OpenF1, FastF1, pytest, GitHub Actions.

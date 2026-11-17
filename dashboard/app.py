@@ -413,8 +413,11 @@ def render_degradation(circuits: dict[str, str]) -> None:
                 )
         fig.update_xaxes(title="Idade do pneu (voltas)")
         fig.update_yaxes(title="Perda (s) vs. pneu novo")
-        chart(style(fig, height=420), "Perda de tempo por idade do pneu, por composto", "deg_curves")
-        st.caption("Linha pontilhada: idades sem suporte nos dados. O modelo não extrapola e o simulador as evita.")
+        n_races = int(q("select count(*) as n from analytics.cv_by_race")["n"].iloc[0])
+        # mesma altura do painel ao lado, que cresce com o número de corridas
+        chart(style(fig, height=max(420, 26 * n_races + 110)), "Perda de tempo por idade do pneu, por composto", "deg_curves")
+        if (~curves["supported"]).any():
+            st.caption("Linha pontilhada: idades sem suporte nos dados. O modelo não extrapola e o simulador as evita.")
     with right, panel("cv"):
         cv = q("select race_id, rmse_baseline, rmse_xgb from analytics.cv_by_race order by race_id")
         wins = int((cv["rmse_xgb"] < cv["rmse_baseline"]).sum())
@@ -442,8 +445,9 @@ def render_degradation(circuits: dict[str, str]) -> None:
         )
         fig.update_layout(barmode="group", bargap=0.3, bargroupgap=0.08, yaxis=dict(autorange="reversed"))
         fig.update_xaxes(title="RMSE (s), corrida fora do treino")
-        style(fig, height=420)
-        fig.update_layout(margin_l=85)
+        style(fig, height=max(420, 26 * len(names) + 110))
+        # abas ocultas medem o texto errado; a margem sai do nome mais longo (fonte mono de 12 px, ~7,5 px por letra)
+        fig.update_layout(margin_l=int(7.5 * max(len(n) for n in names)) + 16)
         fig.update_yaxes(automargin=False)
         chart(fig, "Erro do baseline e do XGBoost em cada corrida", "deg_cv")
         st.caption("Cada corrida foi prevista por um modelo treinado sem ela.")
@@ -620,7 +624,7 @@ def main() -> None:
 
     races = q("select * from gold.dim_races order by race_id")
     indexed = races.set_index("race_id")
-    brand, picker, terms = st.columns([6, 2, 1], vertical_alignment="bottom")
+    brand, picker, terms = st.columns([5, 2, 1.3], vertical_alignment="bottom")
     brand.title("F1 Strategy Lakehouse")
     with terms:
         glossary()
